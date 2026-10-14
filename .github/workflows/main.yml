@@ -1,0 +1,67 @@
+name: Build and Deploy Qiyas Materials
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Extract ZIP
+        run: |
+          set -e
+          mkdir -p dist
+
+          ZIP_FILE=$(find . -maxdepth 1 -type f -iname "*.zip" | head -n 1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: ZIP file not found"
+            exit 1
+          fi
+
+          unzip -o "$ZIP_FILE" -d extracted
+
+          FILE=$(find extracted -type f -name "index.html" | head -n 1)
+
+          if [ -z "$FILE" ]; then
+            echo "ERROR: index.html not found inside ZIP"
+            find extracted -type f
+            exit 1
+          fi
+
+          cp "$FILE" dist/index.html
+          touch dist/.nojekyll
+
+      - name: Upload Website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy Website
+        id: deployment
+        uses: actions/deploy-pages@v4
